@@ -1,38 +1,36 @@
 /**
- * jev-quickstart-with-openrouter-00.ts
+ * jev-quickstart-with-openrouter-00-en.ts
  *
- * Quickstart: memanggil TypeSafe Jev lewat OpenRouter Decisions API.
- * Jev BUKAN LLM — ia tidak generate teks. Ia menerima `state` (fakta padat)
- * + pertanyaan terstruktur (choice / noul / score), lalu mengembalikan
- * jawaban + probabilitas terkalibrasi.
+ * English variant of the q00 quickstart — the SAME scenario, translated.
+ * Purpose: compare Jev's answers across languages head-to-head.
  *
- * Cara jalan:
+ * How to run:
  *   export OPENROUTER_API_KEY=sk-or-...
- *   export OPENROUTER_BASE_URL=https://openrouter.ai/api/v1   # opsional
- *   export JEV_MODEL=typesafe/jev-1.13                        # opsional
- *   npm run q00        # atau: npx tsx src/jev-quickstart-with-openrouter-00.ts
+ *   export OPENROUTER_BASE_URL=https://openrouter.ai/api/v1   # optional
+ *   export JEV_MODEL=typesafe/jev-1.13                        # optional
+ *   npm run q00-en   # or: npx tsx src/jev-quickstart-with-openrouter-00-en.ts
  */
 
 // ---------------------------------------------------------------------------
-// Konfigurasi dari environment
+// Config from environment
 // ---------------------------------------------------------------------------
 
 const apiKey = process.env.OPENROUTER_API_KEY;
 if (!apiKey) {
-  console.error("ERROR: OPENROUTER_API_KEY belum di-set.");
-  console.error("Contoh: export OPENROUTER_API_KEY=sk-or-...");
+  console.error("ERROR: OPENROUTER_API_KEY is not set.");
+  console.error("Example: export OPENROUTER_API_KEY=sk-or-...");
   process.exit(1);
 }
 
-// Decisions API hidup di /api/alpha/decisions (bukan /api/v1).
+// The Decisions API lives at /api/alpha/decisions (not /api/v1).
 const baseUrl = (process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1").replace(/\/+$/, "");
 const decisionsUrl = baseUrl.replace(/\/v1$/, "") + "/alpha/decisions";
 
-// Model bisa di-override; default pin ke versi stabil.
+// Model can be overridden; default pins a stable version.
 const model = process.env.JEV_MODEL ?? "typesafe/jev-1.13";
 
 // ---------------------------------------------------------------------------
-// Tipe pertanyaan & jawaban Jev
+// Jev question & answer types
 // ---------------------------------------------------------------------------
 
 type Question =
@@ -61,41 +59,42 @@ interface DecisionsResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Contoh state: triase tiket support (1 state, 3 pertanyaan paralel)
+// Example state: support ticket triage (1 state, 3 parallel questions)
+// Mirrors the Indonesian q00 scenario exactly.
 // ---------------------------------------------------------------------------
 
 const requestBody: DecisionsRequest = {
   model,
   state:
-    "Tiket #4821 dari pelanggan paket Pro. Isi: 'Saya kena charge dua kali bulan ini, " +
-    "tolong refund salah satunya secepatnya.' Riwayat: tidak pernah telat bayar. " +
-    "Alternatif: (a) teruskan ke tim billing — sesuai karena ini sengketa tagihan; " +
-    "(b) jawab otomatis — ditolak karena pelanggan minta tindakan spesifik; " +
-    "(c) eskalasi ke manajer — belum perlu karena belum ada penolakan.",
+    "Ticket #4821 from a Pro-plan customer. Content: 'I was charged twice this month, " +
+    "please refund one of them as soon as possible.' History: never late on payments. " +
+    "Alternatives: (a) route to the billing team — fits because this is a billing dispute; " +
+    "(b) auto-reply — rejected because the customer asks for a specific action; " +
+    "(c) escalate to a manager — not needed yet since there has been no refusal.",
   questions: {
     intent: {
       type: "choice",
-      instructions: "Tim mana yang seharusnya menangani tiket ini?",
+      instructions: "Which team should handle this ticket?",
       criteria: {
-        billing: "Sengketa tagihan, refund, atau pembayaran.",
-        technical: "Bug produk atau masalah integrasi.",
-        other: "Di luar billing dan technical.",
+        billing: "Billing disputes, refunds, or payments.",
+        technical: "Product bugs or integration issues.",
+        other: "Neither billing nor technical.",
       },
     },
     escalate: {
       type: "noul",
-      instructions: "Apakah tiket ini perlu dieskalasi ke manajer sekarang?",
+      instructions: "Should this ticket be escalated to a manager right now?",
     },
     urgency: {
       type: "score",
-      instructions: "Seberapa mendesak tiket ini?",
-      criteria: ["bisa menunggu", "minggu ini", "hari ini"],
+      instructions: "How urgent is this ticket?",
+      criteria: ["can wait", "this week", "today"],
     },
   },
 };
 
 // ---------------------------------------------------------------------------
-// Panggil API
+// Call the API
 // ---------------------------------------------------------------------------
 
 async function main() {
@@ -108,7 +107,7 @@ async function main() {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
       "HTTP-Referer": "https://github.com/Faishalbhitex/jev-usecase",
-      "X-Title": "jev-usecase quickstart",
+      "X-Title": "jev-usecase quickstart (en)",
     },
     body: JSON.stringify(requestBody),
   });
@@ -117,7 +116,7 @@ async function main() {
     const text = await res.text();
     console.error(`ERROR: HTTP ${res.status}\n${text.slice(0, 500)}`);
     if (res.status === 401 || res.status === 403) {
-      console.error("\nPetunjuk: cek OPENROUTER_API_KEY (awalan sk-or-...).");
+      console.error("\nHint: check OPENROUTER_API_KEY (starts with sk-or-...).");
     }
     process.exit(1);
   }
@@ -131,12 +130,12 @@ async function main() {
       console.log(`  choice      : ${ans.choice}`);
       console.log(`  confidence  : ${ans.confidence}`);
       console.log(`  probabilities: ${JSON.stringify(ans.probabilities)}`);
-      console.log(`  interpretasi: ${ans.confidence < 0.4 ? "UNCERTAIN (confidence < 0.4)" : "OK"}`);
+      console.log(`  verdict: ${ans.confidence < 0.4 ? "UNCERTAIN (confidence < 0.4)" : "OK"}`);
     } else if (ans.type === "noul") {
       const verdict = ans.noul >= 0.7 ? "YES" : ans.noul <= 0.3 ? "NO" : "UNCERTAIN";
       console.log(`  noul  : ${ans.noul} -> ${verdict}`);
     } else if (ans.type === "score") {
-      console.log(`  score : ${ans.score} (abaikan agregat; baca per-dimensi)`);
+      console.log(`  score : ${ans.score} (ignore aggregate; read per-dimension)`);
       console.log(`  legend: ${JSON.stringify(ans.legend)}`);
       if (ans.probabilities) {
         console.log(`  probabilities: ${JSON.stringify(ans.probabilities)}`);
