@@ -8,13 +8,31 @@ Lihat [PLAN.md](PLAN.md) untuk daftar hipotesis, batasan, dan arah stack.
 ## Setup
 
 ```sh
-npm install @typesafe-ai/sdk   # SDK resmi Jev (Node 20+)
+npm install
+cp .env.example .env   # lalu isi OPENROUTER_API_KEY
 ```
 
-## Status
+Atau tanpa file `.env`, langsung export:
 
-- [x] Koneksi GitHub dari VM (via API, bukan SSH — SSH diblokir proxy)
-- [ ] Eksperimen 1: tool-call routing
-- [ ] Eksperimen 2: model routing (task-based)
-- [ ] Eksperimen 3: LLM guardrail
-- [ ] Eksperimen 4: RAG reranker
+```sh
+export OPENROUTER_API_KEY=sk-or-...
+export OPENROUTER_BASE_URL=https://openrouter.ai/api/v1   # opsional
+export JEV_MODEL=typesafe/jev-1.13                        # opsional
+```
+
+## Menjalankan
+
+```sh
+npm run q00
+# sama dengan: npx tsx src/jev-quickstart-with-openrouter-00.ts
+```
+
+`q00` = quickstart Jev via OpenRouter Decisions API: satu state + tiga
+pertanyaan paralel (`choice`, `noul`, `score`), hasilnya dicetak beserta
+interpretasi threshold-nya.
+
+## Catatan
+
+- Node 20+ (repo ini dites di Node 22 & 24).
+- `node_modules/` tidak di-commit; jalankan `npm install` dulu setelah clone.
+- Jangan commit `.env` (sudah di `.gitignore`).
