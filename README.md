@@ -61,6 +61,17 @@ memutuskan `direct` (p>=0.7, tool LangChain dieksekusi langsung tanpa LLM),
 `reject` (p<=0.3). Threshold bisa dioverride via `JEV_CONFIDENT` /
 `JEV_REJECT_BELOW`. Tools adalah fungsi lokal deterministik (data contoh).
 
+Jalankan penuh di VPS (cabang Gemini butuh key valid):
+
+```sh
+git pull
+npm install
+export OPENROUTER_API_KEY=<redacted>   # Jev via OpenRouter
+export GEMINI_API_KEY=<redacted>            # cabang llm
+export GEMINI_MODEL=gemini-3.8-flash          # opsional
+npm run q03
+```
+
 ## Catatan
 
 - Node 20+ (repo ini dites di Node 22 & 24).

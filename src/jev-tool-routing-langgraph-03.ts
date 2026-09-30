@@ -28,8 +28,9 @@
  *
  * Cara jalan:
  *   export OPENROUTER_API_KEY=<redacted>   # untuk Jev
- *   export GEMINI_API_KEY=<redacted>            # opsional, untuk cabang llm
- *   npm run q03
+ *   export GEMINI_API_KEY=<redacted>            # untuk cabang llm (jalan penuh)
+ *   export GEMINI_MODEL=gemini-3.8-flash          # opsional
+ *   npm install && npm run q03
  */
 
 import { StateGraph, StateSchema, START, END } from "@langchain/langgraph";
@@ -260,6 +261,7 @@ const directExec = async (state: S) => {
 };
 
 /** Node 2b: cabang ambigu -> Gemini dengan klasifikasi Jev dilampirkan. */
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
 const llmFallback = async (state: S) => {
   const ranked = Object.entries(state.probs)
     .sort((a, b) => b[1] - a[1])
@@ -280,7 +282,7 @@ const llmFallback = async (state: S) => {
   }
   const ai = new GoogleGenAI({});
   const interaction = await ai.interactions.create({
-    model: "gemini-3.8-flash",
+    model: GEMINI_MODEL,
     input: prompt,
   });
   return { llmPrompt: prompt, result: "[llm] " + (interaction.output_text ?? "(kosong)") };
