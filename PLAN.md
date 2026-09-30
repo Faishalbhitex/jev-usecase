@@ -46,7 +46,8 @@ bukan pengganti LLM atau agentic AI. Tidak terikat ke satu project tertentu.
 - [x] OpenRouter API key terhubung (Secure Vault)
 - [x] Skill `jev-decision` (Python CLI) teruji end-to-end via OpenRouter
 - [ ] Repo eksperimen TypeScript (belum dibuat — menunggu lampu hijau)
-- [ ] Eksperimen 1: tool routing
+- [x] Eksperimen 01: quickstart via SDK resmi (`src/jev-quickstart-sdk-01.ts`, `npm run q01`)
+- [ ] Eksperimen 02: tool routing (`src/jev-tool-routing-02.ts`, `npm run q02`) — ditunda
 - [ ] Eksperimen 2: model routing
 - [ ] Eksperimen 3: guardrail
 - [ ] Eksperimen 4: reranker

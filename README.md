@@ -31,6 +31,24 @@ npm run q00
 pertanyaan paralel (`choice`, `noul`, `score`), hasilnya dicetak beserta
 interpretasi threshold-nya.
 
+```sh
+npm run q01
+# sama dengan: npx tsx src/jev-quickstart-sdk-01.ts
+```
+
+`q01` = versi SDK dari `q00`: skenario triase tiket yang sama, tapi lewat
+SDK resmi `@typesafe-ai/sdk` (`TypeSafeClient.systemOne` + builder
+`choice`/`noul`/`score`). Transport ke OpenRouter Decisions API
+(wire-compatible) via modul bersama `src/jev-openrouter-transport.ts`.
+
+```sh
+npm run q02
+# sama dengan: npx tsx src/jev-tool-routing-02.ts
+```
+
+`q02` = eksperimen tool-call routing (DITUNDA): Jev menyaring 10 kandidat
+tools menjadi subset kecil per query, 6 kasus uji Bahasa Indonesia.
+
 ## Catatan
 
 - Node 20+ (repo ini dites di Node 22 & 24).
