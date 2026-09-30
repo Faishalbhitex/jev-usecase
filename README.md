@@ -66,11 +66,22 @@ Jalankan penuh di VPS (cabang Gemini butuh key valid):
 ```sh
 git pull
 npm install
-export OPENROUTER_API_KEY=<redacted>   # Jev via OpenRouter
-export GEMINI_API_KEY=<redacted>            # cabang llm
-export GEMINI_MODEL=gemini-3.8-flash          # opsional
+export OPENROUTER_API_KEY=<redacted>   # Jev via OpenRouter (+ llm fallback gratis)
+export LLM_PROVIDER=openrouter                # atau "gemini" (default)
+export OPENROUTER_MODEL=nvidia/nemotron-3.5-lightning:free  # opsional
+# --- alternatif: llm via Gemini (butuh key valid) ---
+# export GEMINI_API_KEY=<redacted>
+# export GEMINI_MODEL=gemini-3.8-flash
 npm run q03
 ```
+
+Catatan llm fallback: model gratis OpenRouter bersifat OpenAI-compatible
+(terverifikasi via `/api/v1/chat/completions`). Default
+`nvidia/nemotron-3.5-lightning:free` adalah reasoning model yang berpikir
+lantang — pilihan tool di-parse dari baris `TOOL:`. Uji paksa
+(`JEV_CONFIDENT=0.995`): 4/5 kasus memilih tool yang benar, 1 kasus
+degenerate (rambling). Untuk fallback yang lebih stabil, gunakan model
+berbayar atau Gemini dengan key valid.
 
 ## Catatan
 

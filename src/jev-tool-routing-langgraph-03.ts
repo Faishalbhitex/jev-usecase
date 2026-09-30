@@ -27,8 +27,10 @@
  * prompt yang AKAN dikirim — jalankan cabang itu dari VPS dengan key valid.
  *
  * Cara jalan:
- *   export OPENROUTER_API_KEY=<redacted>   # untuk Jev
- *   export GEMINI_API_KEY=<redacted>            # untuk cabang llm (jalan penuh)
+ *   export OPENROUTER_API_KEY=<redacted>   # untuk Jev (+ llm via OpenRouter)
+ *   export GEMINI_API_KEY=<redacted>            # opsional, untuk llm via Gemini
+ *   export LLM_PROVIDER=openrouter                # atau "gemini" (default)
+ *   export OPENROUTER_MODEL=nvidia/nemotron-3.5-lightning:free  # opsional
  *   export GEMINI_MODEL=gemini-3.8-flash          # opsional
  *   npm install && npm run q03
  */
@@ -260,8 +262,19 @@ const directExec = async (state: S) => {
   return { result: String(out) };
 };
 
-/** Node 2b: cabang ambigu -> Gemini dengan klasifikasi Jev dilampirkan. */
+/** Node 2b: cabang ambigu -> LLM dengan klasifikasi Jev dilampirkan.
+ *
+ * Dua provider, pilih via LLM_PROVIDER:
+ *   - "gemini"     (default): SDK resmi @google/genai, butuh GEMINI_API_KEY.
+ *   - "openrouter"           : model gratis OpenRouter via endpoint yang
+ *                              OpenAI-compatible (paket `openai`), butuh
+ *                              OPENROUTER_API_KEY (sudah ada untuk Jev).
+ * Model masing-masing via GEMINI_MODEL / OPENROUTER_MODEL.
+ */
 const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
+const LLM_PROVIDER = process.env.LLM_PROVIDER ?? "gemini";
+const OPENROUTER_MODEL =
+  process.env.OPENROUTER_MODEL ?? "nvidia/nemotron-3.5-lightning:free";
 const llmFallback = async (state: S) => {
   const ranked = Object.entries(state.probs)
     .sort((a, b) => b[1] - a[1])
@@ -272,6 +285,32 @@ const llmFallback = async (state: S) => {
     "Klasifikasi awal model Jev (probabilitas tiap tool):\n" + ranked + "\n" +
     'Pilih SATU tool yang paling tepat, atau "tidak_ada".\n' +
     "Jawab dengan format: TOOL: <nama_tool> | ALASAN: <satu kalimat>";
+  if (LLM_PROVIDER === "openrouter") {
+    const { default: OpenAI } = await import("openai");
+    const or = new OpenAI({
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey: process.env.OPENROUTER_API_KEY,
+      defaultHeaders: {
+        "HTTP-Referer": "https://github.com/Faishalbhitex/jev-usecase",
+        "X-Title": "jev-usecase q03 llm-fallback",
+      },
+    });
+    const completion = await or.chat.completions.create({
+      model: OPENROUTER_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      // model reasoning gratis ini berpikir lantang dulu sebelum menjawab,
+      // jadi beri budget token cukup agar sampai ke baris TOOL:
+      max_tokens: 600,
+    });
+    const text = completion.choices[0]?.message?.content ?? "(kosong)";
+    const pick = text.match(/TOOL:\s*([a-z_]+)/i)?.[1] ?? "(tidak ter-parse)";
+    return {
+      llmPrompt: prompt,
+      result:
+        "[llm:openrouter/" + OPENROUTER_MODEL + "] pilihan=" + pick +
+        " | " + text.slice(0, 200).replace(/\s+/g, " "),
+    };
+  }
   if (!process.env.GEMINI_API_KEY) {
     return {
       llmPrompt: prompt,
