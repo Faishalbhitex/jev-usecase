@@ -12,11 +12,17 @@
     "q00-en": "npx tsx src/jev-quickstart-with-openrouter-00-en.ts",
     "typecheck": "npx tsc --noEmit",
     "q01": "npx tsx src/jev-quickstart-sdk-01.ts",
-    "q02": "npx tsx src/jev-tool-routing-02.ts"
+    "q02": "npx tsx src/jev-tool-routing-02.ts",
+    "q03": "npx tsx src/jev-tool-routing-langgraph-03.ts"
   },
   "type": "module",
   "version": "0.1.0",
   "dependencies": {
-    "@typesafe-ai/sdk": "^0.6.0"
+    "@google/genai": "^2.24.0",
+    "@langchain/core": "^1.2.13",
+    "@langchain/langgraph": "^1.4.18",
+    "@typesafe-ai/sdk": "^0.6.0",
+    "langchain": "^1.5.14",
+    "zod": "^4.6.5"
   }
 }

@@ -49,6 +49,18 @@ npm run q02
 `q02` = eksperimen tool-call routing (DITUNDA): Jev menyaring 10 kandidat
 tools menjadi subset kecil per query, 6 kasus uji Bahasa Indonesia.
 
+```sh
+npm run q03
+# sama dengan: npx tsx src/jev-tool-routing-langgraph-03.ts
+```
+
+`q03` = tool routing end-to-end dengan LangGraph: node Jev mengklasifikasi
+query (satu pertanyaan `noul` per tool), router berupa fungsi biasa
+memutuskan `direct` (p>=0.7, tool LangChain dieksekusi langsung tanpa LLM),
+`llm` (zona ambigu, Gemini dengan klasifikasi Jev dilampirkan), atau
+`reject` (p<=0.3). Threshold bisa dioverride via `JEV_CONFIDENT` /
+`JEV_REJECT_BELOW`. Tools adalah fungsi lokal deterministik (data contoh).
+
 ## Catatan
 
 - Node 20+ (repo ini dites di Node 22 & 24).
