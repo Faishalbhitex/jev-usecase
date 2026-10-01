@@ -57,9 +57,14 @@ npm run q03
 `q03` = tool routing end-to-end dengan LangGraph: node Jev mengklasifikasi
 query (satu pertanyaan `noul` per tool), router berupa fungsi biasa
 memutuskan `direct` (p>=0.7, tool LangChain dieksekusi langsung tanpa LLM),
-`llm` (zona ambigu, Gemini dengan klasifikasi Jev dilampirkan), atau
-`reject` (p<=0.3). Threshold bisa dioverride via `JEV_CONFIDENT` /
+`llm` (zona ambigu, LLM memilih tool lalu pilihan divalidasi + dieksekusi),
+atau `reject` (p<=0.3). Threshold bisa dioverride via `JEV_CONFIDENT` /
 `JEV_REJECT_BELOW`. Tools adalah fungsi lokal deterministik (data contoh).
+
+Output dibuat verbose: model Jev + model LLM, daftar tools, query per kasus,
+top-3 probabilitas Jev, alasan route, prompt mentah + jawaban mentah LLM,
+pilihan tool hasil parsing, hasil eksekusi, dan token per kasus + total
+(agregasi benar, tidak ditimpa per kasus).
 
 Jalankan penuh di VPS (cabang Gemini butuh key valid):
 
@@ -67,21 +72,29 @@ Jalankan penuh di VPS (cabang Gemini butuh key valid):
 git pull
 npm install
 export OPENROUTER_API_KEY=<redacted>   # Jev via OpenRouter (+ llm fallback gratis)
-export LLM_PROVIDER=openrouter                # atau "gemini" (default)
+export LLM_PROVIDER=openrouter                # atau "gemini" (default) atau "ollama"
 export OPENROUTER_MODEL=nvidia/nemotron-3.5-lightning:free  # opsional
+export OLLAMA_MODEL=gpt-oss:20b               # opsional, untuk llm via Ollama cloud
 # --- alternatif: llm via Gemini (butuh key valid) ---
 # export GEMINI_API_KEY=<redacted>
 # export GEMINI_MODEL=gemini-3.8-flash
 npm run q03
 ```
 
-Catatan llm fallback: model gratis OpenRouter bersifat OpenAI-compatible
-(terverifikasi via `/api/v1/chat/completions`). Default
-`nvidia/nemotron-3.5-lightning:free` adalah reasoning model yang berpikir
-lantang — pilihan tool di-parse dari baris `TOOL:`. Uji paksa
-(`JEV_CONFIDENT=0.995`): 4/5 kasus memilih tool yang benar, 1 kasus
-degenerate (rambling). Untuk fallback yang lebih stabil, gunakan model
-berbayar atau Gemini dengan key valid.
+Catatan llm fallback:
+- OpenRouter (`LLM_PROVIDER=openrouter`): model gratis bersifat
+  OpenAI-compatible (terverifikasi via `/api/v1/chat/completions`). Default
+  `nvidia/nemotron-3.5-lightning:free` adalah reasoning model yang berpikir
+  lantang — pilihan tool di-parse dari baris `TOOL:`. Uji paksa
+  (`JEV_CONFIDENT=0.995`): 4/5 kasus memilih tool yang benar, 1 kasus
+  degenerate (rambling). Untuk fallback yang lebih stabil, gunakan model
+  berbayar atau Gemini dengan key valid.
+- Ollama cloud (`LLM_PROVIDER=ollama`): via endpoint OpenAI-compatible
+  `https://ollama.com/v1`, auth memakai konektor vault `custom.ollama`
+  (di VM Muse lewat `run-with-keys.py` + `src/authd-surrogate.ts`; di mesin
+  lain cukup `export OLLAMA_API_KEY=...`). Default `gpt-oss:20b`. Uji paksa
+  (`JEV_CONFIDENT=0.995`, 2026-10-01): 5/5 pilihan tool benar, ter-parse
+  bersih satu baris, semua dieksekusi dengan hasil tepat.
 
 ## Catatan
 

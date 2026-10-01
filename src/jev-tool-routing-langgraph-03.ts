@@ -22,17 +22,23 @@
  * kebutuhannya dengan aturan sederhana (demo-grade; produksi: slot-filling).
  *
  * Kaki Gemini memakai SDK resmi @google/genai (interactions API) sesuai skill
- * gemini-api-dev. Dari sandbox VM ini GEMINI_API_KEY tidak tersedia (policy
- * konektor custom.gemini memblokir sandbox), jadi cabang llm akan mencetak
- * prompt yang AKAN dikirim — jalankan cabang itu dari VPS dengan key valid.
+ * gemini-api-dev. Kaki OpenRouter dan Ollama memakai paket `openai` lewat
+ * endpoint OpenAI-compatible masing-masing. Dari VM ini, cabang llm bisa
+ * diuji dengan LLM_PROVIDER=openrouter atau ollama (konektor vault tersedia);
+ * Gemini butuh GEMINI_API_KEY valid (jalankan dari VPS bila perlu).
  *
  * Cara jalan:
  *   export OPENROUTER_API_KEY=<redacted>   # untuk Jev (+ llm via OpenRouter)
  *   export GEMINI_API_KEY=<redacted>            # opsional, untuk llm via Gemini
- *   export LLM_PROVIDER=openrouter                # atau "gemini" (default)
+ *   export LLM_PROVIDER=openrouter                # atau "gemini" (default) atau "ollama"
  *   export OPENROUTER_MODEL=nvidia/nemotron-3.5-lightning:free  # opsional
  *   export GEMINI_MODEL=gemini-3.8-flash          # opsional
+ *   export OLLAMA_MODEL=gpt-oss:20b               # opsional (model cloud Ollama)
  *   npm install && npm run q03
+ *
+ * Output dibuat verbose: model Jev + model LLM, daftar tools, query per kasus,
+ * top-3 probabilitas Jev, alasan route, prompt mentah + jawaban mentah LLM,
+ * pilihan tool hasil parsing, hasil eksekusi, dan token per kasus + total.
  */
 
 import { StateGraph, StateSchema, START, END } from "@langchain/langgraph";
@@ -217,6 +223,11 @@ const State = new StateSchema({
   route: z.string().default(""),
   result: z.string().default(""),
   llmPrompt: z.string().default(""),
+  llmRaw: z.string().default(""),
+  llmPick: z.string().default(""),
+  llmModel: z.string().default(""),
+  llmIn: z.number().default(0),
+  llmOut: z.number().default(0),
   jevIn: z.number().default(0),
   jevOut: z.number().default(0),
 });
@@ -264,17 +275,33 @@ const directExec = async (state: S) => {
 
 /** Node 2b: cabang ambigu -> LLM dengan klasifikasi Jev dilampirkan.
  *
- * Dua provider, pilih via LLM_PROVIDER:
+ * Tiga provider, pilih via LLM_PROVIDER:
  *   - "gemini"     (default): SDK resmi @google/genai, butuh GEMINI_API_KEY.
  *   - "openrouter"           : model gratis OpenRouter via endpoint yang
  *                              OpenAI-compatible (paket `openai`), butuh
  *                              OPENROUTER_API_KEY (sudah ada untuk Jev).
- * Model masing-masing via GEMINI_MODEL / OPENROUTER_MODEL.
+ *   - "ollama"               : model cloud Ollama via endpoint OpenAI-compatible
+ *                              https://ollama.com/v1 (paket `openai`), auth via
+ *                              surrogate konektor custom.ollama (./authd-surrogate.ts).
+ * Model masing-masing via GEMINI_MODEL / OPENROUTER_MODEL / OLLAMA_MODEL.
+ *
+ * LLM hanya MEMILIH tool (dipar-parsing dari baris "TOOL: <nama>"); pilihan
+ * divalidasi lalu tool dieksekusi — hasilnya yang ditampilkan sebagai hasil kasus.
  */
 const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-3.8-flash";
 const LLM_PROVIDER = process.env.LLM_PROVIDER ?? "gemini";
 const OPENROUTER_MODEL =
   process.env.OPENROUTER_MODEL ?? "nvidia/nemotron-3.5-lightning:free";
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "gpt-oss:20b";
+const OLLAMA_BASE_URL = "https://ollama.com/v1";
+
+/** Label "provider/model" untuk ditampilkan di output. */
+function llmLabel(): string {
+  if (LLM_PROVIDER === "openrouter") return "openrouter/" + OPENROUTER_MODEL;
+  if (LLM_PROVIDER === "ollama") return "ollama/" + OLLAMA_MODEL;
+  return "gemini/" + GEMINI_MODEL;
+}
+
 const llmFallback = async (state: S) => {
   const ranked = Object.entries(state.probs)
     .sort((a, b) => b[1] - a[1])
@@ -285,46 +312,87 @@ const llmFallback = async (state: S) => {
     "Klasifikasi awal model Jev (probabilitas tiap tool):\n" + ranked + "\n" +
     'Pilih SATU tool yang paling tepat, atau "tidak_ada".\n' +
     "Jawab dengan format: TOOL: <nama_tool> | ALASAN: <satu kalimat>";
-  if (LLM_PROVIDER === "openrouter") {
+
+  // Panggil provider -> { raw, inTok, outTok }. Gemini tidak mengembalikan usage.
+  let raw: string;
+  let inTok = 0;
+  let outTok = 0;
+  if (LLM_PROVIDER === "openrouter" || LLM_PROVIDER === "ollama") {
     const { default: OpenAI } = await import("openai");
-    const or = new OpenAI({
-      baseURL: "https://openrouter.ai/api/v1",
-      apiKey: process.env.OPENROUTER_API_KEY,
-      defaultHeaders: {
-        "HTTP-Referer": "https://github.com/Faishalbhitex/jev-usecase",
-        "X-Title": "jev-usecase q03 llm-fallback",
-      },
-    });
-    const completion = await or.chat.completions.create({
-      model: OPENROUTER_MODEL,
+    let chat;
+    if (LLM_PROVIDER === "openrouter") {
+      chat = new OpenAI({
+        baseURL: "https://openrouter.ai/api/v1",
+        apiKey: process.env.OPENROUTER_API_KEY,
+        defaultHeaders: {
+          "HTTP-Referer": "https://github.com/Faishalbhitex/jev-usecase",
+          "X-Title": "jev-usecase q03 llm-fallback",
+        },
+      });
+    } else {
+      // Ollama cloud: OpenAI-compatible di https://ollama.com/v1.
+      // Auth: OLLAMA_API_KEY bila di-set (mis. di VPS); kalau tidak, pakai
+      // surrogate konektor custom.ollama (ditukar egress proxy di VM Muse).
+      let apiKey = process.env.OLLAMA_API_KEY;
+      if (!apiKey) {
+        const { getSurrogate } = await import("./authd-surrogate.js");
+        apiKey = (await getSurrogate("custom.ollama")).surrogate;
+      }
+      chat = new OpenAI({ baseURL: OLLAMA_BASE_URL, apiKey });
+    }
+    const model = LLM_PROVIDER === "openrouter" ? OPENROUTER_MODEL : OLLAMA_MODEL;
+    const completion = await chat.chat.completions.create({
+      model,
       messages: [{ role: "user", content: prompt }],
-      // model reasoning gratis ini berpikir lantang dulu sebelum menjawab,
+      // model reasoning gratis berpikir lantang dulu sebelum menjawab,
       // jadi beri budget token cukup agar sampai ke baris TOOL:
       max_tokens: 600,
     });
-    const text = completion.choices[0]?.message?.content ?? "(kosong)";
-    const pick = text.match(/TOOL:\s*([a-z_]+)/i)?.[1] ?? "(tidak ter-parse)";
-    return {
-      llmPrompt: prompt,
-      result:
-        "[llm:openrouter/" + OPENROUTER_MODEL + "] pilihan=" + pick +
-        " | " + text.slice(0, 200).replace(/\s+/g, " "),
-    };
+    raw = completion.choices[0]?.message?.content ?? "(kosong)";
+    inTok = completion.usage?.prompt_tokens ?? 0;
+    outTok = completion.usage?.completion_tokens ?? 0;
+  } else {
+    if (!process.env.GEMINI_API_KEY) {
+      return {
+        llmPrompt: prompt,
+        llmRaw: "",
+        llmPick: "(dilewati)",
+        llmModel: llmLabel(),
+        result:
+          "[llm] dilewati: GEMINI_API_KEY tidak tersedia. " +
+          "Prompt yang AKAN dikirim tersimpan di state.llmPrompt.",
+      };
+    }
+    const ai = new GoogleGenAI({});
+    const interaction = await ai.interactions.create({
+      model: GEMINI_MODEL,
+      input: prompt,
+    });
+    raw = interaction.output_text ?? "(kosong)";
   }
-  if (!process.env.GEMINI_API_KEY) {
-    return {
-      llmPrompt: prompt,
-      result:
-        "[llm] dilewati: GEMINI_API_KEY tidak tersedia di sandbox. " +
-        "Prompt yang AKAN dikirim tersimpan di state.llmPrompt.",
-    };
+
+  // Parse pilihan, validasi, lalu EKSEKUSI tool yang dipilih.
+  const pick = raw.match(/TOOL:\s*([a-z_]+)/i)?.[1]?.toLowerCase() ?? "";
+  const toolFn = TOOLMAP[pick];
+  let execNote: string;
+  if (toolFn) {
+    const out = await toolFn.invoke({ query: state.query });
+    execNote = "dieksekusi -> " + String(out);
+  } else if (pick === "tidak_ada" || pick === "") {
+    execNote = "tidak ada tool dipilih/dieksekusi";
+  } else {
+    execNote = 'pilihan "' + pick + '" tidak valid, tidak dieksekusi';
   }
-  const ai = new GoogleGenAI({});
-  const interaction = await ai.interactions.create({
-    model: GEMINI_MODEL,
-    input: prompt,
-  });
-  return { llmPrompt: prompt, result: "[llm] " + (interaction.output_text ?? "(kosong)") };
+  return {
+    llmPrompt: prompt,
+    llmRaw: raw,
+    llmPick: pick || "(tidak ter-parse)",
+    llmModel: llmLabel(),
+    llmIn: inTok,
+    llmOut: outTok,
+    result:
+      "[llm:" + llmLabel() + "] pilih=" + (pick || "?") + " | " + execNote,
+  };
 };
 
 /** Node 2c: Jev yakin tidak ada tool yang cocok. */
@@ -359,18 +427,29 @@ const CASES = [
 ];
 
 async function main() {
-  console.log("Model : " + client.defaultModel);
-  console.log("Graph : jev_classify -> {direct|llm|reject}");
-  console.log("Aturan: p>=" + CONFIDENT + " direct; p<=" + REJECT_BELOW + " reject; tengah -> llm\n");
+  console.log("Jev model : " + client.defaultModel);
+  console.log("LLM       : " + llmLabel() + (LLM_PROVIDER === "ollama" ? " (" + OLLAMA_BASE_URL + ")" : ""));
+  console.log("Graph     : jev_classify -> {direct|llm|reject}");
+  console.log("Aturan    : p>=" + CONFIDENT + " direct; p<=" + REJECT_BELOW + " reject; tengah -> llm");
+  console.log("Tools (" + TOOLS.length + ") :");
+  for (const t of TOOLS) console.log("  - " + t.name + ": " + t.description);
+  console.log();
 
   let jevIn = 0;
   let jevOut = 0;
+  let llmIn = 0;
+  let llmOut = 0;
+  let llmCalls = 0;
   const routes: Record<string, number> = { direct: 0, llm: 0, reject: 0 };
 
   for (const [i, query] of CASES.entries()) {
     const s = await graph.invoke({ query });
-    jevIn = s.jevIn;
-    jevOut = s.jevOut;
+    // agregasi per kasus (invoke selalu mulai dari state kosong)
+    jevIn += s.jevIn;
+    jevOut += s.jevOut;
+    llmIn += s.llmIn;
+    llmOut += s.llmOut;
+    if (s.route === "llm") llmCalls++;
     routes[s.route] = (routes[s.route] ?? 0) + 1;
 
     const top3 = Object.entries(s.probs as Record<string, number>)
@@ -380,14 +459,41 @@ async function main() {
       .join(", ");
     console.log("--- kasus " + (i + 1) + ': "' + query + '"');
     console.log("    jev top3 : " + top3);
-    console.log("    route    : " + s.route.toUpperCase() + (s.route === "direct" ? " -> " + s.topTool : ""));
+    if (s.route === "direct") {
+      console.log(
+        "    route    : DIRECT -> " + s.topTool +
+        " (p=" + s.topP.toFixed(2) + " >= " + CONFIDENT + ")",
+      );
+    } else if (s.route === "reject") {
+      console.log(
+        "    route    : REJECT (p=" + s.topP.toFixed(2) + " <= " + REJECT_BELOW +
+        ", Jev yakin tidak ada tool cocok)",
+      );
+    } else {
+      console.log(
+        "    route    : LLM (p=" + s.topP.toFixed(2) + " zona ambigu, model " + s.llmModel + ")",
+      );
+      console.log("    llm prompt:");
+      for (const line of String(s.llmPrompt).split("\n")) console.log("      | " + line);
+      console.log(
+        "    llm raw  : " + String(s.llmRaw).slice(0, 300).replace(/\s+/g, " "),
+      );
+      console.log("    llm pilih: " + s.llmPick);
+    }
     console.log("    hasil    : " + s.result);
+    let tok = "jev " + s.jevIn + " in / " + s.jevOut + " out";
+    if (s.route === "llm") tok += "; llm " + s.llmIn + " in / " + s.llmOut + " out";
+    console.log("    tokens   : " + tok);
     console.log();
   }
 
   console.log("=== ringkasan ===");
-  console.log("routes     : " + JSON.stringify(routes));
-  console.log("jev tokens : " + jevIn + " in / " + jevOut + " out");
+  console.log("routes       : " + JSON.stringify(routes));
+  console.log("jev tokens   : " + jevIn + " in / " + jevOut + " out (" + CASES.length + " kasus)");
+  console.log(
+    "llm tokens   : " + llmIn + " in / " + llmOut + " out (" +
+    llmCalls + " panggilan, " + llmLabel() + ")",
+  );
 }
 
 main().catch((err) => {
