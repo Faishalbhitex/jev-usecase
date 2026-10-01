@@ -2,7 +2,7 @@
 """Jalankan perintah dengan API key dari vault disuntik sebagai env var.
 
 Hanya di memori proses anak — tidak pernah di-print atau ditulis ke file.
-Contoh: python3 run-with-keys.py npx tsx src/jev-tool-routing-langgraph-03.ts
+Contoh: python3 .muse/run-with-keys.py npx tsx src/tool-routing-03/jev-tool-routing-03.ts
 """
 import json
 import os

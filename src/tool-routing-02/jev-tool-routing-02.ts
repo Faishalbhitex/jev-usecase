@@ -14,7 +14,7 @@
 
 
 import { noul } from "@typesafe-ai/sdk";
-import { createJevClient } from "./jev-openrouter-transport.js";
+import { createJevClient } from "../shared/jev-openrouter-transport.js";
 
 const client = createJevClient();
 

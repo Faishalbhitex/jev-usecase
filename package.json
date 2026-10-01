@@ -8,12 +8,12 @@
   "name": "jev-usecase",
   "private": true,
   "scripts": {
-    "q00": "npx tsx src/jev-quickstart-with-openrouter-00.ts",
-    "q00-en": "npx tsx src/jev-quickstart-with-openrouter-00-en.ts",
+    "q00": "npx tsx src/quickstart-00/jev-quickstart-00.ts",
+    "q00-en": "npx tsx src/quickstart-00/jev-quickstart-00-en.ts",
     "typecheck": "npx tsc --noEmit",
-    "q01": "npx tsx src/jev-quickstart-sdk-01.ts",
-    "q02": "npx tsx src/jev-tool-routing-02.ts",
-    "q03": "npx tsx src/jev-tool-routing-langgraph-03.ts"
+    "q01": "npx tsx src/quickstart-sdk-01/jev-quickstart-sdk-01.ts",
+    "q02": "npx tsx src/tool-routing-02/jev-tool-routing-02.ts",
+    "q03": "npx tsx src/tool-routing-03/jev-tool-routing-03.ts"
   },
   "type": "module",
   "version": "0.1.0",

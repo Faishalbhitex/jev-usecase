@@ -46,7 +46,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { noul } from "@typesafe-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
-import { createJevClient } from "./jev-openrouter-transport.js";
+import { createJevClient } from "../shared/jev-openrouter-transport.js";
 
 // ---------------------------------------------------------------------------
 // Tools: fungsi lokal deterministik (data contoh, bukan API eksternal)
@@ -335,7 +335,7 @@ const llmFallback = async (state: S) => {
       // surrogate konektor custom.ollama (ditukar egress proxy di VM Muse).
       let apiKey = process.env.OLLAMA_API_KEY;
       if (!apiKey) {
-        const { getSurrogate } = await import("./authd-surrogate.js");
+        const { getSurrogate } = await import("./.muse/authd-surrogate.js");
         apiKey = (await getSurrogate("custom.ollama")).surrogate;
       }
       chat = new OpenAI({ baseURL: OLLAMA_BASE_URL, apiKey });
